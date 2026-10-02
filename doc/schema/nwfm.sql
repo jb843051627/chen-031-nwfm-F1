@@ -22,15 +22,17 @@ CREATE TABLE IF NOT EXISTS t_nwfm_check_row (
 
 CREATE TABLE IF NOT EXISTS t_nwfm_device_rule (
   id bigint NOT NULL COMMENT '主键',
-  rule_code varchar(32) DEFAULT NULL COMMENT '规则编号',
+  rule_code varchar(32) DEFAULT NULL COMMENT '规则代号',
   rule_name varchar(64) DEFAULT NULL COMMENT '规则名称',
-  th1_max decimal(8,2) DEFAULT NULL COMMENT '偏差可用档上限(%)',
-  th2_max decimal(8,2) DEFAULT NULL COMMENT '偏差复核档上限(%)',
-  th3_max decimal(8,2) DEFAULT NULL COMMENT '偏差停用档上限(%)',
-  eff_start datetime DEFAULT NULL COMMENT '生效起始时刻',
-  eff_end datetime DEFAULT NULL COMMENT '生效截止时刻(不含)',
-  priority int DEFAULT NULL COMMENT '优先级(数值越大越优先)',
-  status int DEFAULT NULL COMMENT '规则状态 0启用 1停用',
+  item_name varchar(64) DEFAULT NULL COMMENT '名目（本行认的是哪一件事；空者不进名目检索，也不挂任何一件事）',
+  row_seq int DEFAULT NULL COMMENT '行次（系统在上头排定，不许手填；一行退回后再补，认的还是原行次）',
+  th1_max decimal(8,2) DEFAULT NULL COMMENT '准秤档上限(%)；空/负/哨兵大数=此档无天花板',
+  th2_max decimal(8,2) DEFAULT NULL COMMENT '复称档上限(%)；空/负/哨兵大数=此档无天花板',
+  th3_max decimal(8,2) DEFAULT NULL COMMENT '停用档上限(%)；空/负/哨兵大数=此档无天花板，超最高档非空上限走人工',
+  eff_start datetime DEFAULT NULL COMMENT '生效起始时刻(含；空着=从头管起)',
+  eff_end datetime DEFAULT NULL COMMENT '生效截止时刻(不含，到头那一刻自己不管用；空着=管到永远)',
+  priority int DEFAULT NULL COMMENT '旧优先级列：口径裁决不看它，同名目多版本先比更新时刻晚者、再比代号字面次序',
+  status int DEFAULT NULL COMMENT '在册状态 0在册 1撤下（撤下不删行，仍占原行次）',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
   create_time datetime DEFAULT NULL COMMENT '创建时间',
@@ -125,14 +127,20 @@ CREATE TABLE IF NOT EXISTS t_nwfm_settle_rule (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='清算赔付判定规则';
 
--- 初始档案数据（id=0/1 在用行，id=2 停用行）
--- 四张判定/档案表的种子数据。id=0/1 为在用行、id=2 为停用行，
--- 判定档、签批基准、赔付分档三张表各留在用行与停用行作对照；
--- 档案表缺行会让 insert 直接判 0 ⇒ 合法记录会因查不到档案而保存失败。
-INSERT IGNORE INTO t_nwfm_device_rule (id, rule_code, rule_name, th1_max, th2_max, th3_max, eff_start, eff_end, priority, status, del_flag, create_by, create_time)
-VALUES (0, 'NR00', '偏差可用档：示值偏差落在 0.5% 以内按准秤认（在用行）', 0.50, 2.00, 5.00, '2020-01-01 00:00:00', '2099-12-31 23:59:59', 10, 0, 0, 'seed', NOW()),
-       (1, 'NR01', '偏差可用档：示值偏差落在 0.5% 以内按准秤认（在用行）', 0.50, 2.00, 5.00, '2020-01-01 00:00:00', '2099-12-31 23:59:59', 10, 0, 0, 'seed', NOW()),
-       (2, 'NR02', '偏差停用档：示值偏差超过 2.00% 收秤不认（停用行）', 0.50, 2.00, 5.00, '2020-01-01 00:00:00', '2021-12-31 23:59:59', 10, 1, 0, 'seed', NOW());
+-- 口径册种子（t_nwfm_device_rule）。同名目 = 同一件事；一件事只容一行说话，
+-- 多版本按时段（eff_end 不含）+ 更新时刻晚者 + 代号字面次序裁决；撤下不删行。
+-- NR00/NR01：同名目新旧两版，2021-01-01 00:00:00 整切换（旧版管到这一刻、不含）；
+-- NR02：时段重叠但已撤下，在册裁决不吭声，行次仍占着；
+-- NR03：未来版本，且停用档上限写负数 ⇒ 按空（无天花板）；
+-- NR04：名目空着 ⇒ 名目检索一条不列；停用档写哨兵大数 ⇒ 按空；
+-- NR05：名目与 NR00 近义不同字，逐字比不得并入。
+INSERT IGNORE INTO t_nwfm_device_rule (id, rule_code, rule_name, item_name, row_seq, th1_max, th2_max, th3_max, eff_start, eff_end, priority, status, del_flag, create_by, create_time)
+VALUES (0, 'NR00', '偏差处置档（现行版：准秤0.5/复称2.0/停用无天花板）', '衡器示值偏差', 2, 0.50, 2.00, NULL, '2021-01-01 00:00:00', '2099-12-31 23:59:59', 0, 0, 0, 'seed', NOW()),
+       (1, 'NR01', '偏差处置档（旧版：准秤0.5/复称2.0/停用5.0）', '衡器示值偏差', 1, 0.50, 2.00, 5.00, '2020-01-01 00:00:00', '2021-01-01 00:00:00', 0, 0, 0, 'seed', NOW()),
+       (2, 'NR02', '偏差停用档旧口径（已撤下，不删行仍占行次）', '衡器示值偏差', 3, 0.50, 2.00, 5.00, '2020-01-01 00:00:00', '2099-12-31 23:59:59', 0, 1, 0, 'seed', NOW()),
+       (3, 'NR03', '偏差处置档（未来版；停用档负数按空）', '衡器示值偏差', 4, 0.50, 2.00, -1.00, '2027-01-01 00:00:00', '2099-12-31 23:59:59', 0, 0, 0, 'seed', NOW()),
+       (4, 'NR04', '无名目行（名目检索不出；哨兵大数按空）', NULL, 5, NULL, NULL, 999999.99, '2020-01-01 00:00:00', '2099-12-31 23:59:59', 0, 0, 0, 'seed', NOW()),
+       (5, 'NR05', '近名名目行（逐字比，不得与衡器示值偏差并作一条）', '台秤示值偏差', 6, 0.50, 2.00, 5.00, '2020-01-01 00:00:00', '2099-12-31 23:59:59', 0, 0, 0, 'seed', NOW());
 
 INSERT IGNORE INTO t_nwfm_settle_rule (id, bill_no, node_no, sign_mode, need_count, sign_count, status, del_flag, create_by, create_time)
 VALUES (0, 'NB00', 0, 0, 1, 0, 0, 0, 'seed', NOW()),

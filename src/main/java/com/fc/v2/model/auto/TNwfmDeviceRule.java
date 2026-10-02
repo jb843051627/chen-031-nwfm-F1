@@ -42,41 +42,51 @@ public class TNwfmDeviceRule implements Serializable {
     @ApiModelProperty(value = "规则名称")
     private String ruleName;
 
-    /** 偏差可用档上限(%) */
+    /** 名目：本行认的是哪一件事；空者不进名目检索，也不挂任何一件事 */
+    @TableField("item_name")
+    @ApiModelProperty(value = "名目（本行认的是哪一件事；空者不进名目检索）")
+    private String itemName;
+
+    /** 行次：系统在上头排定，不许手填；一行退回后再补，认的还是原行次 */
+    @TableField("row_seq")
+    @ApiModelProperty(value = "行次（系统排定，不许手填；退回再补仍认原行次）")
+    private Integer rowSeq;
+
+    /** 准秤档上限(%)；空/负/哨兵大数 = 此档无天花板 */
     @TableField("th1_max")
-    @ApiModelProperty(value = "偏差可用档上限(%)")
+    @ApiModelProperty(value = "准秤档上限(%)；空/负/哨兵大数=此档无天花板")
     private BigDecimal th1Max;
 
-    /** 偏差复核档上限(%) */
+    /** 复称档上限(%)；空/负/哨兵大数 = 此档无天花板 */
     @TableField("th2_max")
-    @ApiModelProperty(value = "偏差复核档上限(%)")
+    @ApiModelProperty(value = "复称档上限(%)；空/负/哨兵大数=此档无天花板")
     private BigDecimal th2Max;
 
-    /** 偏差停用档上限(%) */
+    /** 停用档上限(%)；空/负/哨兵大数 = 此档无天花板，再超出走人工 */
     @TableField("th3_max")
-    @ApiModelProperty(value = "偏差停用档上限(%)")
+    @ApiModelProperty(value = "停用档上限(%)；空/负/哨兵大数=此档无天花板，再超出走人工")
     private BigDecimal th3Max;
 
-    /** 生效起始时刻 */
+    /** 生效起始时刻（含；空着 = 从头管起） */
     @TableField("eff_start")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @ApiModelProperty(value = "生效起始时刻")
+    @ApiModelProperty(value = "生效起始时刻(含；空着=从头管起)")
     private Date effStart;
 
-    /** 生效截止时刻(不含) */
+    /** 生效截止时刻（不含：到头那一刻自己不管用；空着 = 管到永远） */
     @TableField("eff_end")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @ApiModelProperty(value = "生效截止时刻(不含)")
+    @ApiModelProperty(value = "生效截止时刻(不含，空着=管到永远)")
     private Date effEnd;
 
-    /** 优先级(数值越大越优先) */
+    /** 旧优先级列：口径裁决不看它（同名目多版本比更新时刻、再比代号字面次序） */
     @TableField("priority")
-    @ApiModelProperty(value = "优先级(数值越大越优先)")
+    @ApiModelProperty(value = "旧优先级列（裁决不看）")
     private Integer priority;
 
-    /** 规则状态 0启用 1停用 */
+    /** 在册状态 0在册 1撤下（撤下不删行，仍占原行次） */
     @TableField("status")
-    @ApiModelProperty(value = "规则状态 0启用 1停用")
+    @ApiModelProperty(value = "在册状态 0在册 1撤下")
     private Integer status;
 
     /** 删除标记 0正常 1删除 */
@@ -133,6 +143,22 @@ public class TNwfmDeviceRule implements Serializable {
 
     public void setRuleName(String ruleName) {
         this.ruleName = ruleName;
+    }
+
+    public String getItemName() {
+        return itemName;
+    }
+
+    public void setItemName(String itemName) {
+        this.itemName = itemName;
+    }
+
+    public Integer getRowSeq() {
+        return rowSeq;
+    }
+
+    public void setRowSeq(Integer rowSeq) {
+        this.rowSeq = rowSeq;
     }
 
     public BigDecimal getTh1Max() {
